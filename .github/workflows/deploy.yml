@@ -1,36 +1,39 @@
-# 定义工作流程的名称，这在 GitHub Actions UI 中用于标识你的工作流程
-name: Build and Deploy
+name: Deploy to GitHub Pages
 
-# 定义触发工作流程的事件。在这里，它配置为在推送到 `main` 分支时触发。
 on:
+  # 每次推送到 `main` 分支时触发这个“工作流程”
+  # 如果你使用了别的分支名，请按需将 `main` 替换成你的分支名
   push:
-    branches:
-      - main  # 或者你的默认分支名，比如 master
+    branches: [ main ]
+  # 允许你在 GitHub 上的 Actions 标签中手动触发此“工作流程”
+  workflow_dispatch:
 
-# 定义工作流程中的作业。每个作业运行在由 GitHub 提供的运行器上。
+# 允许 job 克隆 repo 并创建一个 page deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
-  # 这是你定义的作业的名称，可以随意命名，这里命名为 "build-and-deploy"
-  build-and-deploy:
-    # 指定作业运行的虚拟环境。这里使用的是最新版的 Ubuntu
+  build:
     runs-on: ubuntu-latest
-    
-    # 定义要在此作业中执行的步骤
     steps:
-      - uses: actions/checkout@v2  # 使用 actions/checkout@v2 检出你的仓库代码到运行器
-
-      - name: Setup Node  # 步骤名称
-        uses: actions/setup-node@v2  # 使用 actions/setup-node@v2 设置 Node.js 环境
+      - name: Checkout your repository using git
+        uses: actions/checkout@v4
+      - name: Install, build, and upload your site
+        uses: withastro/action@v2
         with:
-          node-version: '18'  # 指定 Node.js 的版本，这里使用 18
+          # path: . # 存储库中 Astro 项目的根位置。（可选）
+          node-version: 18 # 用于构建站点的特定 Node.js 版本，默认为 20。（可选）
+          # package-manager: pnpm@latest # 应使用哪个 Node.js 包管理器来安装依赖项和构建站点。会根据存储库中的 lockfile 自动检测。（可选）
 
-      - name: Install Dependencies  # 步骤名称
-        run: npm install  # 运行 npm install 命令来安装项目依赖
-
-      - name: Build  # 步骤名称
-        run: npm run build  # 运行构建命令，对于 Astro 项目，这通常会生成静态文件到指定目录
-
-      - name: Deploy  # 步骤名称
-        uses: peaceiris/actions-gh-pages@v3  # 使用 peaceiris/actions-gh-pages@v3 将构建的内容部署到 gh-pages 分支
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # 使用 GitHub 提供的 token 进行授权，以便于推送到 gh-pages 分支
-          publish_dir: ./dist  # 指定了构建后的静态文件存放目录，这里的 "./" 通常指的是你的 Git 仓库的根目录
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
